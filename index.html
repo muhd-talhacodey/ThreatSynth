@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ThreatSynth | Actionable Intelligence</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Icons (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        obsidian: '#0b0f15',
+                        slateDark: '#131923',
+                        emeraldNeon: '#10b981',
+                        alertRed: '#ef4444'
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- External Libraries (Markdown, PDF, DOCX, Mermaid) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: false, theme: 'dark', fontFamily: 'JetBrains Mono' });
+        window.mermaid = mermaid;
+    </script>
+
+    <style>
+        /* Minimalist IO Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #10b981;
+        }
+        
+        /* Core layout transitions */
+        .sidebar-transition {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        /* Markdown Styling inside Chat */
+        .prose pre {
+            background-color: #0f172a;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            border: 1px solid #1e293b;
+        }
+        .prose code {
+            font-family: 'JetBrains Mono', monospace;
+            color: #10b981;
+            font-size: 0.875em;
+        }
+        .prose p { margin-bottom: 0.75rem; }
+        .prose ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 0.75rem; }
+        .prose a { color: #38bdf8; text-decoration: underline; }
+        
+        /* Glassmorphism accents */
+        .glass-panel {
+            background: rgba(19, 25, 35, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        /* Typing cursor animation */
+        .cursor-blink::after {
+            content: '█';
+            animation: blink 1s step-start infinite;
+            color: #10b981;
+            margin-left: 2px;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-obsidian text-gray-900 dark:text-gray-100 h-screen overflow-hidden flex transition-colors duration-300">
+
+    <!-- GLOBAL STATE & CONTROLLER (Hidden) -->
+    <script>
+        // PDF.js worker setup
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        const State = {
+            apiKey: '',
+            isKeyValid: false,
+            files: [], // { id, name, type, content, isSelected }
+            chatHistory: [],
+            isLeftOpen: true,
+            isRightOpen: true,
+            theme: 'dark'
+        };
+    </script>
+
+    <!-- ================= LEFT SIDEBAR (DATA INPUT) ================= -->
+    <aside id="leftSidebar" class="sidebar-transition w-80 flex-shrink-0 overflow-hidden border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-slateDark flex flex-col z-20 absolute md:relative h-full transform translate-x-0">
+        <!-- Brand Header -->
+        <div class="p-6 border-b border-gray-200 dark:border-gray-800 relative">
+            <button onclick="toggleSidebar('leftSidebar')" class="absolute top-4 right-4 p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors hidden md:block" title="Close Sidebar">
+                <i data-lucide="panel-left-close" class="w-5 h-5"></i>
+            </button>
+            <div class="flex items-center gap-3 mb-2">
+                <div class="p-2 bg-emeraldNeon bg-opacity-10 rounded-lg">
+                    <i data-lucide="shield-alert" class="w-6 h-6 text-emeraldNeon"></i>
+                </div>
+                <h1 class="font-bold text-xl tracking-tight">ThreatSynth</h1>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 font-mono tracking-wider uppercase">Turning chaotic data into<br>actionable intelligence</p>
+        </div>
+
+        <!-- File Upload Area -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800">
+            <label id="dropZone" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 dark:border-gray-700 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:bg-obsidian hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative">
+                <div class="flex flex-col items-center justify-center pt-5 pb-6 pointer-events-none">
+                    <i data-lucide="upload-cloud" class="w-8 h-8 mb-2 text-gray-400"></i>
+                    <p class="mb-1 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">Click to upload</span> or drag</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-500 font-mono">PDF, DOCX only</p>
+                </div>
+                <input id="fileInput" type="file" class="hidden" accept=".pdf,.docx" multiple />
+                <div id="uploadOverlay" class="absolute inset-0 bg-obsidian bg-opacity-80 hidden flex-col items-center justify-center rounded-lg">
+                    <i data-lucide="loader-2" class="w-6 h-6 text-emeraldNeon animate-spin mb-2"></i>
+                    <span class="text-xs font-mono text-emeraldNeon" id="uploadStatus">Processing...</span>
+                </div>
+            </label>
+        </div>
+
+        <!-- File List -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-2" id="fileListContainer">
+            <div class="text-xs text-gray-500 font-mono uppercase tracking-wider mb-3 px-1">Knowledge Base</div>
+            <!-- Files injected here -->
+            <p id="noFilesMsg" class="text-sm text-gray-500 italic px-1">No intelligence loaded.</p>
+        </div>
+
+        <!-- Left Controls -->
+        <div class="p-4 border-t border-gray-200 dark:border-gray-800 flex justify-between items-center">
+            <button onclick="toggleTheme()" class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors" title="Toggle Theme">
+                <i data-lucide="sun" id="themeIconLight" class="w-5 h-5 hidden"></i>
+                <i data-lucide="moon" id="themeIconDark" class="w-5 h-5"></i>
+            </button>
+            <button onclick="toggleSidebar('leftSidebar')" class="md:hidden p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors">
+                <i data-lucide="panel-left-close" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </aside>
+
+
+    <!-- ================= CENTER MAIN (ANALYSIS WORKSPACE) ================= -->
+    <main class="flex-1 flex flex-col relative min-w-0 bg-gray-50 dark:bg-obsidian">
+        
+        <!-- Top Navigation Bar -->
+        <header class="h-14 border-b border-gray-200 dark:border-gray-800 glass-panel flex items-center justify-between px-4 z-10 sticky top-0">
+            <button onclick="toggleSidebar('leftSidebar')" class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors" title="Toggle Sidebar">
+                <i data-lucide="panel-left" class="w-5 h-5"></i>
+            </button>
+            
+            <!-- Tabs (Visible only when file selected) -->
+            <div id="workspaceTabs" class="hidden flex gap-1 bg-gray-200 dark:bg-gray-800 p-1 rounded-lg">
+                <button onclick="switchTab('document')" id="tabDocument" class="px-3 py-1.5 text-sm font-medium rounded-md bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm transition-all">Document</button>
+                <button onclick="switchTab('mindmap')" id="tabMindmap" class="px-3 py-1.5 text-sm font-medium rounded-md text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all flex items-center gap-2">
+                    Mindmap <i data-lucide="network" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <button onclick="toggleSidebar('rightSidebar')" class="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 transition-colors" title="Toggle Chat">
+                <i data-lucide="panel-right" class="w-5 h-5"></i>
+            </button>
+        </header>
+
+        <!-- Workspace Area -->
+        <div class="flex-1 relative overflow-hidden">
+            
+            <!-- Empty State -->
+            <div id="emptyWorkspace" class="absolute inset-0 flex flex-col items-center justify-center p-8 text-center animate-pulse">
+                <div class="w-24 h-24 mb-6 rounded-full border border-gray-300 dark:border-gray-700 flex items-center justify-center">
+                    <i data-lucide="radar" class="w-12 h-12 text-gray-400 dark:text-gray-600"></i>
+                </div>
+                <h2 class="text-xl font-medium mb-2 text-gray-700 dark:text-gray-300">Awaiting Telemetry</h2>
+                <p class="text-gray-500 dark:text-gray-500 font-mono text-sm max-w-md">Upload your cyber threat related documents (PDF/DOCX) on the left panel to initialize analysis engine.</p>
+            </div>
+
+            <!-- Document View State -->
+            <div id="documentWorkspace" class="hidden absolute inset-0 overflow-y-auto p-8 lg:px-24">
+                <div class="max-w-4xl mx-auto">
+                    <h2 id="docViewTitle" class="text-2xl font-bold mb-4 font-mono text-emeraldNeon"></h2>
+                    <div id="docViewContent" class="prose dark:prose-invert max-w-none text-gray-800 dark:text-gray-300 font-sans leading-relaxed whitespace-pre-wrap"></div>
+                </div>
+            </div>
+
+            <!-- Mindmap View State -->
+            <div id="mindmapWorkspace" class="hidden absolute inset-0 bg-gray-50 dark:bg-[#0d1219] flex flex-col">
+                <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center bg-white dark:bg-slateDark glass-panel">
+                    <span class="font-mono text-sm text-gray-500 dark:text-gray-400">Threat Graph Synthesis</span>
+                    <button onclick="generateMindmap()" id="btnGenerateMindmap" class="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-sm transition-colors shadow-lg shadow-emerald-500/20">
+                        <i data-lucide="zap" class="w-4 h-4"></i> Generate Map
+                    </button>
+                </div>
+                <div id="mindmapContainer" class="flex-1 overflow-auto p-4 flex items-center justify-center relative">
+                    <p id="mindmapEmpty" class="text-gray-500 font-mono text-sm text-center">Click 'Generate Map' to visualize threat vectors.</p>
+                    <div id="mindmapRenderArea" class="w-full h-full flex items-center justify-center"></div>
+                    <div id="mindmapLoader" class="hidden absolute inset-0 bg-obsidian bg-opacity-80 flex flex-col items-center justify-center z-10">
+                        <i data-lucide="cpu" class="w-10 h-10 text-emeraldNeon animate-pulse mb-4"></i>
+                        <span class="font-mono text-emeraldNeon cursor-blink">Synthesizing node graph...</span>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </main>
+
+
+    <!-- ================= RIGHT SIDEBAR (AI TERMINAL) ================= -->
+    <aside id="rightSidebar" class="sidebar-transition w-96 flex-shrink-0 overflow-hidden border-l border-gray-200 dark:border-gray-800 bg-white dark:bg-slateDark flex flex-col z-20 absolute right-0 md:relative h-full transform translate-x-0">
+        
+        <!-- API Config Header -->
+        <div class="p-4 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-obsidian relative">
+            <button onclick="toggleSidebar('rightSidebar')" class="absolute top-3 right-3 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors md:hidden" title="Close Sidebar">
+                 <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+            <div class="flex items-center justify-between mb-2">
+                <label class="text-xs font-mono font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">AI Core Config</label>
+                <div class="flex items-center gap-2">
+                    <div id="apiStatusIndicator" class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)] transition-colors duration-300"></div>
+                    <button onclick="toggleSidebar('rightSidebar')" class="hidden md:block ml-2 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors" title="Close Sidebar">
+                        <i data-lucide="panel-right-close" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="flex gap-2 relative">
+                <div class="relative flex-1">
+                    <i data-lucide="key" class="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="password" id="apiKeyValue" placeholder="Gemini API Key..." class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-md py-2 pl-9 pr-3 text-sm focus:outline-none focus:border-emeraldNeon focus:ring-1 focus:ring-emeraldNeon font-mono transition-colors">
+                </div>
+                <button onclick="validateApiKey()" id="btnValidateApi" class="px-3 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md text-sm transition-colors font-medium border border-gray-300 dark:border-gray-700">
+                    Verify
+                </button>
+            </div>
+        </div>
+
+        <!-- Chat History -->
+        <div id="chatWindow" class="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+            <!-- Welcome Message -->
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2 mb-1">
+                    <i data-lucide="bot" class="w-4 h-4 text-emeraldNeon"></i>
+                    <span class="text-xs font-mono font-semibold text-emeraldNeon">ThreatSynth AI</span>
+                </div>
+                <div class="bg-gray-100 dark:bg-gray-800 rounded-lg rounded-tl-none p-3 text-sm font-sans text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-700 shadow-sm inline-block max-w-[90%]">
+                    System initialized. Awaiting API validation and document telemetry to begin analysis.
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions & Chat Input -->
+        <div class="p-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-obsidian">
+            
+            <!-- Quick Actions -->
+            <div class="flex gap-2 mb-3 overflow-x-auto pb-1" id="quickActions" style="display: none;">
+                <button onclick="quickAction('Summarize the current document, highlighting key threat actors, CVEs, and IOCs.')" class="whitespace-nowrap px-3 py-1.5 bg-gray-200 dark:bg-gray-800 hover:bg-emeraldNeon hover:text-white dark:hover:bg-emeraldNeon dark:hover:text-white text-gray-700 dark:text-gray-300 text-xs rounded-full transition-colors border border-gray-300 dark:border-gray-700 font-medium">
+                    <i data-lucide="file-text" class="w-3 h-3 inline mr-1"></i> Summarize
+                </button>
+                <button onclick="quickAction('Analyze this data as a new incident ticket. Provide severity, immediate mitigation steps, and priority level.')" class="whitespace-nowrap px-3 py-1.5 bg-gray-200 dark:bg-gray-800 hover:bg-emeraldNeon hover:text-white dark:hover:bg-emeraldNeon dark:hover:text-white text-gray-700 dark:text-gray-300 text-xs rounded-full transition-colors border border-gray-300 dark:border-gray-700 font-medium">
+                    <i data-lucide="ticket" class="w-3 h-3 inline mr-1"></i> Incident Ticket
+                </button>
+                <button onclick="generateAudioReport()" id="btnAudioReport" class="whitespace-nowrap px-3 py-1.5 bg-gray-200 dark:bg-gray-800 hover:bg-purple-500 hover:text-white dark:hover:bg-purple-600 dark:hover:text-white text-gray-700 dark:text-gray-300 text-xs rounded-full transition-colors border border-gray-300 dark:border-gray-700 font-medium">
+                    <i data-lucide="mic" class="w-3 h-3 inline mr-1"></i> Audio Report
+                </button>
+            </div>
+
+            <!-- Input Box -->
+            <div class="relative flex items-end gap-2">
+                <textarea id="chatInputArea" rows="1" class="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-4 pr-10 text-sm focus:outline-none focus:border-emeraldNeon focus:ring-1 focus:ring-emeraldNeon transition-colors resize-none shadow-sm" placeholder="Query threat intelligence..." oninput="this.style.height = '';this.style.height = Math.min(this.scrollHeight, 120) + 'px'"></textarea>
+                <button onclick="sendMessage()" id="btnSendMessage" class="absolute right-2 bottom-2 p-1.5 bg-emeraldNeon hover:bg-emerald-400 text-white rounded-md transition-colors shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="mt-2 text-center">
+                <span class="text-[10px] text-gray-400 font-mono">Gemini 2.5 Flash | IO Core</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Audio Player Container (Hidden initially) -->
+    <div id="audioContainer" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-4 py-2 shadow-2xl flex items-center gap-3 transition-transform translate-y-20 opacity-0 z-50 glass-panel">
+        <i data-lucide="radio" class="w-5 h-5 text-purple-500 animate-pulse"></i>
+        <audio id="globalAudioPlayer" controls class="h-8 w-64 outline-none"></audio>
+        <button onclick="closeAudio()" class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        // --- Initialization ---
+        lucide.createIcons();
+
+        // Check system theme
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+            document.getElementById('themeIconDark').classList.add('hidden');
+            document.getElementById('themeIconLight').classList.remove('hidden');
+        }
+
+        // --- Core UI Functions ---
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+            const isDark = document.documentElement.classList.contains('dark');
+            State.theme = isDark ? 'dark' : 'light';
+            document.getElementById('themeIconDark').classList.toggle('hidden', isDark);
+            document.getElementById('themeIconLight').classList.toggle('hidden', !isDark);
+            
+            // Re-render mermaid if visible
+            if(document.getElementById('mindmapWorkspace').classList.contains('hidden') === false) {
+                mermaid.initialize({ theme: isDark ? 'dark' : 'default' });
+            }
+        }
+
+        function toggleSidebar(side) {
+            const el = document.getElementById(side);
+            if (side === 'leftSidebar') {
+                State.isLeftOpen = !State.isLeftOpen;
+                if(State.isLeftOpen) {
+                    el.classList.remove('w-0', 'border-none');
+                    el.classList.add('w-80');
+                    el.classList.remove('-translate-x-full');
+                } else {
+                    el.classList.remove('w-80');
+                    el.classList.add('w-0', 'border-none');
+                    el.classList.add('-translate-x-full');
+                }
+            } else {
+                State.isRightOpen = !State.isRightOpen;
+                if(State.isRightOpen) {
+                    el.classList.remove('w-0', 'border-none');
+                    el.classList.add('w-96');
+                    el.classList.remove('translate-x-full');
+                } else {
+                    el.classList.remove('w-96');
+                    el.classList.add('w-0', 'border-none');
+                    el.classList.add('translate-x-full');
+                }
+            }
+        }
+
+        function switchTab(tabName) {
+            document.getElementById('tabDocument').className = `px-3 py-1.5 text-sm font-medium rounded-md transition-all ${tabName === 'document' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white flex items-center gap-2'}`;
+            document.getElementById('tabMindmap').className = `px-3 py-1.5 text-sm font-medium rounded-md transition-all ${tabName === 'mindmap' ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm flex items-center gap-2' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white flex items-center gap-2'}`;
+            
+            document.getElementById('documentWorkspace').classList.toggle('hidden', tabName !== 'document');
+            document.getElementById('mindmapWorkspace').classList.toggle('hidden', tabName !== 'mindmap');
+        }
+
+        function updateWorkspaceState() {
+            const hasFiles = State.files.length > 0;
+            document.getElementById('emptyWorkspace').classList.toggle('hidden', hasFiles);
+            document.getElementById('workspaceTabs').classList.toggle('hidden', !hasFiles);
+            document.getElementById('quickActions').style.display = (hasFiles && State.isKeyValid) ? 'flex' : 'none';
+            
+            if (hasFiles && document.getElementById('documentWorkspace').classList.contains('hidden') && document.getElementById('mindmapWorkspace').classList.contains('hidden')) {
+                switchTab('document');
+            }
+        }
+
+        // --- File Upload & Parsing Logic ---
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-emeraldNeon'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-emeraldNeon'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-emeraldNeon');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        async function handleFiles(files) {
+            if(!files || files.length === 0) return;
+            document.getElementById('uploadOverlay').classList.remove('hidden');
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const id = 'file_' + Date.now() + '_' + i;
+                let textContent = '';
+
+                try {
+                    document.getElementById('uploadStatus').innerText = `Extracting ${file.name}...`;
+                    if (file.name.toLowerCase().endsWith('.pdf')) {
+                        textContent = await extractTextFromPDF(file);
+                    } else if (file.name.toLowerCase().endsWith('.docx')) {
+                        textContent = await extractTextFromDOCX(file);
+                    } else {
+                        throw new Error('Unsupported format');
+                    }
+
+                    State.files.push({
+                        id,
+                        name: file.name,
+                        type: file.name.split('.').pop().toLowerCase(),
+                        content: textContent,
+                        isSelected: State.files.length === 0 // Select first file by default
+                    });
+                } catch (e) {
+                    console.error("Error parsing file:", e);
+                    appendChatMessage('System', `Failed to parse ${file.name}. Ensure it is a valid PDF or DOCX.`, 'error');
+                }
+            }
+            
+            document.getElementById('uploadOverlay').classList.add('hidden');
+            renderFileList();
+            updateWorkspaceState();
+            
+            const selectedFile = State.files.find(f => f.isSelected);
+            if(selectedFile) renderDocument(selectedFile);
+        }
+
+        async function extractTextFromPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += `[Page ${i}] \n${pageText}\n\n`;
+            }
+            return fullText;
+        }
+
+        async function extractTextFromDOCX(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
+            return result.value;
+        }
+
+        function renderFileList() {
+            const container = document.getElementById('fileListContainer');
+            // Remove existing files, keep title and empty msg
+            Array.from(container.children).forEach(child => {
+                if(child.id !== 'noFilesMsg' && !child.classList.contains('text-xs')) child.remove();
+            });
+
+            document.getElementById('noFilesMsg').classList.toggle('hidden', State.files.length > 0);
+
+            State.files.forEach(file => {
+                const div = document.createElement('div');
+                div.className = `p-2 rounded-md cursor-pointer transition-colors border ${file.isSelected ? 'bg-emeraldNeon bg-opacity-10 border-emeraldNeon border-opacity-30' : 'bg-transparent border-transparent hover:bg-gray-100 dark:hover:bg-gray-800'}`;
+                div.onclick = () => selectFile(file.id);
+                
+                const icon = file.type === 'pdf' ? 'file-text' : 'file';
+                const iconColor = file.isSelected ? 'text-emeraldNeon' : 'text-gray-400';
+                const textColor = file.isSelected ? 'text-emeraldNeon font-medium' : 'text-gray-700 dark:text-gray-300';
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="${icon}" class="w-4 h-4 ${iconColor}"></i>
+                        <span class="text-sm truncate flex-1 ${textColor}">${file.name}</span>
+                        ${file.isSelected ? `<div class="w-1.5 h-1.5 rounded-full bg-emeraldNeon shadow-[0_0_5px_#10b981]"></div>` : ''}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
+        function selectFile(id) {
+            State.files.forEach(f => f.isSelected = (f.id === id));
+            renderFileList();
+            const file = State.files.find(f => f.id === id);
+            renderDocument(file);
+            
+            // Reset mindmap when document changes
+            document.getElementById('mindmapRenderArea').innerHTML = '';
+            document.getElementById('mindmapEmpty').classList.remove('hidden');
+        }
+
+        function renderDocument(file) {
+            document.getElementById('docViewTitle').innerText = file.name;
+            // Simple sanitization and preserve newlines
+            const safeContent = file.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            document.getElementById('docViewContent').innerHTML = safeContent;
+        }
+
+        function getActiveContext() {
+            const selectedFiles = State.files.filter(f => f.isSelected);
+            if(selectedFiles.length === 0 && State.files.length > 0) return State.files[0].content;
+            if(selectedFiles.length === 0) return "";
+            return `--- START DOCUMENT: ${selectedFiles[0].name} ---\n${selectedFiles[0].content}\n--- END DOCUMENT ---`;
+        }
+
+
+        // --- Gemini API Logic ---
+        
+        async function fetchGeminiChat(prompt, systemInstruction = null) {
+            if(!State.isKeyValid) throw new Error("API Key not verified.");
+            
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${State.apiKey}`;
+            
+            // Build history context
+            const historyParts = State.chatHistory.filter(c => c.role !== 'system').map(c => ({
+                role: c.role === 'user' ? 'user' : 'model',
+                parts: [{ text: c.text }]
+            }));
+
+            // Include current document context in the prompt
+            const context = getActiveContext();
+            const contextualPrompt = `Context Document Data:\n${context}\n\nUser Query: ${prompt}`;
+            
+            historyParts.push({
+                role: 'user',
+                parts: [{ text: contextualPrompt }]
+            });
+
+            const payload = { contents: historyParts };
+            
+            if(systemInstruction) {
+                payload.systemInstruction = { parts: [{ text: systemInstruction }] };
+            }
+
+            const response = await fetchWithRetry(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            if(!response.ok) throw new Error(data.error?.message || "API request failed");
+            
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        async function fetchWithRetry(url, options, maxRetries = 4) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const res = await fetch(url, options);
+                    if (res.status === 429 && i < maxRetries - 1) {
+                        await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                        continue;
+                    }
+                    return res;
+                } catch (e) {
+                    if (i === maxRetries - 1) throw e;
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+
+        async function validateApiKey() {
+            const input = document.getElementById('apiKeyValue').value.trim();
+            const btn = document.getElementById('btnValidateApi');
+            const indicator = document.getElementById('apiStatusIndicator');
+            
+            if(!input) return;
+            
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin inline"></i>`;
+            lucide.createIcons();
+            
+            try {
+                // simple test request
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${input}`, {
+                    method: 'POST',
+                    headers:{'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "ping" }] }] })
+                });
+                
+                if(res.ok) {
+                    State.apiKey = input;
+                    State.isKeyValid = true;
+                    indicator.classList.remove('bg-red-500', 'shadow-[0_0_8px_rgba(239,68,68,0.6)]');
+                    indicator.classList.add('bg-emeraldNeon', 'shadow-[0_0_8px_rgba(16,185,129,0.6)]');
+                    appendChatMessage('System', 'Authentication successful. Neural link established. Ready for queries.', 'success');
+                    document.getElementById('quickActions').style.display = State.files.length > 0 ? 'flex' : 'none';
+                } else {
+                    throw new Error("Invalid Key");
+                }
+            } catch(e) {
+                State.isKeyValid = false;
+                indicator.classList.remove('bg-emeraldNeon', 'shadow-[0_0_8px_rgba(16,185,129,0.6)]');
+                indicator.classList.add('bg-red-500', 'shadow-[0_0_8px_rgba(239,68,68,0.6)]');
+                appendChatMessage('System', 'Authentication failed. Please check your API key.', 'error');
+            }
+            btn.innerText = 'Verify';
+        }
+
+
+        // --- Chat UI & Interaction ---
+        
+        const chatInputArea = document.getElementById('chatInputArea');
+        chatInputArea.addEventListener('keypress', (e) => {
+            if(e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function sendMessage(textOverride = null) {
+            const text = textOverride || chatInputArea.value.trim();
+            if(!text) return;
+            
+            if(!State.isKeyValid) {
+                appendChatMessage('System', 'Please enter and verify your Gemini API key first.', 'error');
+                return;
+            }
+            if(State.files.length === 0) {
+                 appendChatMessage('System', 'Please upload a threat document to establish context.', 'warning');
+                 return;
+            }
+
+            chatInputArea.value = '';
+            chatInputArea.style.height = '';
+            
+            appendChatMessage('user', text);
+            State.chatHistory.push({ role: 'user', text: text });
+
+            const msgId = appendLoadingMessage();
+            
+            try {
+                const sysInstruction = `You are ThreatSynth AI, an advanced cybersecurity analyst tool. 
+                Answer questions intelligently based ONLY on the provided context document data. 
+                Always provide inline citations (e.g. "[Page 2]" or specific quotes) when extracting facts. 
+                If asked about an incident ticket, format the response strictly with Severity, Priority, Root Cause, Mitigation, and Resolution sections. 
+                Maintain a professional, analytical, and slightly cyber-aesthetic tone. Use markdown formatting.`;
+                
+                const responseText = await fetchGeminiChat(text, sysInstruction);
+                
+                updateMessage(msgId, responseText);
+                State.chatHistory.push({ role: 'model', text: responseText });
+            } catch(e) {
+                updateMessage(msgId, `**Error:** Neural link disrupted. ${e.message}`, 'error');
+            }
+        }
+
+        function quickAction(prompt) {
+            sendMessage(prompt);
+        }
+
+        function appendChatMessage(role, htmlContent, type = 'normal') {
+            const window = document.getElementById('chatWindow');
+            const div = document.createElement('div');
+            div.className = 'flex flex-col gap-1 w-full animate-[fadeIn_0.3s_ease-out]';
+            
+            const isUser = role === 'user';
+            const alignment = isUser ? 'items-end' : 'items-start';
+            const headerIcon = isUser ? 'user' : (role === 'System' ? 'server' : 'bot');
+            const headerColor = isUser ? 'text-blue-500' : (role === 'System' ? 'text-gray-400' : 'text-emeraldNeon');
+            const headerName = isUser ? 'Analyst' : (role === 'System' ? 'System Log' : 'ThreatSynth AI');
+            
+            let bgClass = 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200';
+            if(isUser) bgClass = 'bg-blue-500 text-white border-blue-600';
+            if(type === 'error') bgClass = 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400';
+            if(type === 'success') bgClass = 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400';
+            if(type === 'warning') bgClass = 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800 text-yellow-700 dark:text-yellow-400';
+
+            const borderRadius = isUser ? 'rounded-lg rounded-tr-none' : 'rounded-lg rounded-tl-none';
+            
+            // Format Markdown if it's the bot
+            const displayContent = (role === 'user' || role === 'System') ? htmlContent : marked.parse(htmlContent);
+
+            div.innerHTML = `
+                <div class="flex flex-col ${alignment}">
+                    <div class="flex items-center gap-1.5 mb-1 px-1">
+                        <i data-lucide="${headerIcon}" class="w-3.5 h-3.5 ${headerColor}"></i>
+                        <span class="text-[10px] font-mono font-semibold uppercase tracking-wider ${headerColor}">${headerName}</span>
+                    </div>
+                    <div class="p-3 text-sm font-sans border shadow-sm ${bgClass} ${borderRadius} max-w-[90%] break-words prose-sm ${isUser?'':'prose dark:prose-invert'}">
+                        ${displayContent}
+                    </div>
+                </div>
+            `;
+            window.appendChild(div);
+            lucide.createIcons();
+            window.scrollTop = window.scrollHeight;
+            return div;
+        }
+
+        function appendLoadingMessage() {
+            const window = document.getElementById('chatWindow');
+            const div = document.createElement('div');
+            const id = 'msg_' + Date.now();
+            div.id = id;
+            div.className = 'flex flex-col gap-1 w-full items-start';
+            div.innerHTML = `
+                <div class="flex items-center gap-1.5 mb-1 px-1">
+                    <i data-lucide="bot" class="w-3.5 h-3.5 text-emeraldNeon"></i>
+                    <span class="text-[10px] font-mono font-semibold uppercase tracking-wider text-emeraldNeon">ThreatSynth AI</span>
+                </div>
+                <div class="p-3 text-sm font-sans border shadow-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-emeraldNeon rounded-lg rounded-tl-none max-w-[90%] flex items-center gap-2">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span class="font-mono cursor-blink text-xs">Synthesizing response...</span>
+                </div>
+            `;
+            window.appendChild(div);
+            lucide.createIcons();
+            window.scrollTop = window.scrollHeight;
+            return id;
+        }
+
+        function updateMessage(id, text, type = 'normal') {
+            const el = document.getElementById(id);
+            if(el) {
+                let bgClass = 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200';
+                if(type === 'error') bgClass = 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400';
+                
+                const htmlContent = marked.parse(text);
+                
+                el.innerHTML = `
+                    <div class="flex items-center gap-1.5 mb-1 px-1">
+                        <i data-lucide="bot" class="w-3.5 h-3.5 text-emeraldNeon"></i>
+                        <span class="text-[10px] font-mono font-semibold uppercase tracking-wider text-emeraldNeon">ThreatSynth AI</span>
+                    </div>
+                    <div class="p-3 text-sm font-sans border shadow-sm ${bgClass} rounded-lg rounded-tl-none max-w-[90%] break-words prose-sm prose dark:prose-invert">
+                        ${htmlContent}
+                    </div>
+                `;
+                lucide.createIcons();
+                const window = document.getElementById('chatWindow');
+                window.scrollTop = window.scrollHeight;
+            }
+        }
+
+
+        // --- Mindmap Generation (Mermaid via LLM) ---
+        
+        async function generateMindmap() {
+            if(!State.isKeyValid) {
+                alert("API Key required for generation.");
+                return;
+            }
+            if(State.files.length === 0) return;
+
+            const btn = document.getElementById('btnGenerateMindmap');
+            const loader = document.getElementById('mindmapLoader');
+            const container = document.getElementById('mindmapRenderArea');
+            const emptyMsg = document.getElementById('mindmapEmpty');
+
+            btn.disabled = true;
+            emptyMsg.classList.add('hidden');
+            loader.classList.remove('hidden');
+            container.innerHTML = '';
+
+            try {
+                const sysInstruction = `You are a data visualization assistant. Analyze the provided cybersecurity document and extract the core entities (Threat Actors, Malware, Vulnerabilities/CVEs, Indicators of Compromise, Affected Systems). 
+                Generate a Mermaid.js 'mindmap' syntax graph representing this data.
+                Rules:
+                1. Output ONLY the raw mermaid code block.
+                2. Use the 'mindmap' syntax. Root node should be the main threat or document title.
+                3. Keep text concise. Use valid mermaid syntax. Do not wrap in markdown \`\`\`mermaid formatting, just output the raw mermaid syntax string directly.`;
+
+                const context = getActiveContext();
+                const prompt = `Generate mermaid mindmap for:\n${context}`;
+                
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${State.apiKey}`;
+                const res = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        contents: [{ parts: [{ text: prompt }] }],
+                        systemInstruction: { parts: [{ text: sysInstruction }] }
+                    })
+                });
+
+                const data = await res.json();
+                let mermaidCode = data.candidates[0].content.parts[0].text;
+                
+                // Cleanup LLM formatting if it ignored rules
+                mermaidCode = mermaidCode.replace(/```mermaid\n?/g, '').replace(/```\n?/g, '').trim();
+
+                const id = `mermaid-${Date.now()}`;
+                container.innerHTML = `<pre class="mermaid" id="${id}">${mermaidCode}</pre>`;
+                
+                await window.mermaid.run({ nodes: [document.getElementById(id)] });
+
+            } catch (e) {
+                console.error("Mindmap generation failed", e);
+                container.innerHTML = `<div class="text-red-500 font-mono text-sm flex flex-col items-center"><i data-lucide="alert-triangle" class="w-8 h-8 mb-2"></i> Failed to generate node graph.<br>${e.message}</div>`;
+                lucide.createIcons();
+            } finally {
+                loader.classList.add('hidden');
+                btn.disabled = false;
+            }
+        }
+
+
+        // --- Audio TTS Generation ---
+
+        function pcmToWav(pcmData, sampleRate = 24000) {
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+            const blockAlign = numChannels * (bitsPerSample / 8);
+            const wavBuffer = new ArrayBuffer(44 + pcmData.length);
+            const view = new DataView(wavBuffer);
+
+            // RIFF chunk descriptor
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcmData.length, true);
+            writeString(view, 8, 'WAVE');
+            
+            // fmt sub-chunk
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // Subchunk1Size
+            view.setUint16(20, 1, true); // AudioFormat (PCM)
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitsPerSample, true);
+            
+            // data sub-chunk
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcmData.length, true);
+            
+            // Write PCM data
+            const pcmView = new Uint8Array(wavBuffer, 44);
+            pcmView.set(pcmData);
+            
+            return wavBuffer;
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        async function generateAudioReport() {
+             if(!State.isKeyValid) {
+                appendChatMessage('System', 'API Key required for Audio Synthesis.', 'error');
+                return;
+            }
+            if(State.files.length === 0) return;
+
+            const btn = document.getElementById('btnAudioReport');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-3 h-3 inline mr-1 animate-spin"></i> Generating...`;
+            btn.disabled = true;
+            lucide.createIcons();
+
+            appendChatMessage('System', 'Synthesizing audio briefing. Please stand by...', 'normal');
+
+            try {
+                // 1. Get summary for TTS
+                const sysInstruction = `You are an executive cybersecurity brief generator. Read the provided document and create a short, hard-hitting, professional script (max 3 paragraphs) meant to be read aloud. Focus on the main threat, the impact, and immediate required actions. Do not use markdown, formatting, or special characters. Write it as spoken text.`;
+                const script = await fetchGeminiChat("Generate audio script", sysInstruction);
+
+                // 2. Call TTS API
+                const ttsUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${State.apiKey}`;
+                const payload = {
+                    contents: [{ parts: [{ text: script }] }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } }
+                        }
+                    }
+                };
+
+                const res = await fetchWithRetry(ttsUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if(data.error) throw new Error(data.error.message);
+
+                const inlineData = data.candidates[0].content.parts[0].inlineData;
+                const base64Data = inlineData.data;
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                const wavBuffer = pcmToWav(bytes, 24000); // 24kHz default
+                const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+                const audioUrl = URL.createObjectURL(blob);
+
+                // 3. Show & Play Audio
+                const playerContainer = document.getElementById('audioContainer');
+                const player = document.getElementById('globalAudioPlayer');
+                player.src = audioUrl;
+                playerContainer.classList.remove('translate-y-20', 'opacity-0');
+                playerContainer.classList.add('translate-y-0', 'opacity-100');
+                player.play();
+
+                appendChatMessage('System', 'Audio briefing synthesized and playing.', 'success');
+
+            } catch (e) {
+                console.error("Audio generation failed:", e);
+                appendChatMessage('System', `Audio synthesis failed: ${e.message}`, 'error');
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+        }
+
+        function closeAudio() {
+            const playerContainer = document.getElementById('audioContainer');
+            const player = document.getElementById('globalAudioPlayer');
+            player.pause();
+            player.src = '';
+            playerContainer.classList.remove('translate-y-0', 'opacity-100');
+            playerContainer.classList.add('translate-y-20', 'opacity-0');
+        }
+
+        // --- Custom Animations injected dynamically ---
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
+</body>
+</html>
