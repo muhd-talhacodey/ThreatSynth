@@ -2,6 +2,8 @@
 
 It has been hosted on Vercel, here is the link: https://threat-synth-og.vercel.app/
 
+File that can be used as an example to test out the system: SOC_Incident_Investigation_Challenge.pdf 
+
 ThreatSynth is a high-performance intelligence synthesis platform which was designed for cyber analysts who want to carry out analyzing pdfs with help of Notebook LLM. It bridges the gap between raw data (PDF/DOCX) and actionable insights by leveraging advanced generative AI to automate complex analysis for cyber analysts. The main reason behind this project was to ease difficulties for cyber analysts when analyzing different security incidents. 
 
 So the main question is what does ThreatSynth has to offer at its core capabilitiies... 
