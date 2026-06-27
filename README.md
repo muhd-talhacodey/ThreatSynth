@@ -1,6 +1,6 @@
 # ThreatSynth ~ Turning Chaotic Data into Actionable Intelligence :) 
 
-It has been hosted on Vercel, here is the link: 
+It has been hosted on Vercel, here is the link: https://threat-synth-og.vercel.app/
 
 ThreatSynth is a high-performance intelligence synthesis platform which was designed for cyber analysts who want to carry out analyzing pdfs with help of Notebook LLM. It bridges the gap between raw data (PDF/DOCX) and actionable insights by leveraging advanced generative AI to automate complex analysis for cyber analysts. The main reason behind this project was to ease difficulties for cyber analysts when analyzing different security incidents. 
 
