@@ -16,9 +16,3 @@ Privacy-First: Operates as a local-first interface, ensuring your document conte
 
 ThreatSynth transforms hours of manual documentation review into actionable intelligence in seconds.
 
-
-App has currently been deployed on Vercel for testing reasons. 
-CLI and CVEs with IOC are still left to be placed... 
-Coming Soon... 
-
-https://threat-synth.vercel.app/
