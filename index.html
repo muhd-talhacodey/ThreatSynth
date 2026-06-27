@@ -187,7 +187,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-obsidian text-gray-900 dark:text-gray-100 h-screen overflow-hidden flex transition-colors duration-300 font-sans relative">
+<body class="bg-gray-100 dark:bg-obsidian text-gray-900 dark:text-gray-100 h-screen overflow-hidden flex pb-8 transition-colors duration-300 font-sans relative">
 
     <!-- Ambient Holographic Scan Line (Cyber Vibe) -->
     <div class="absolute inset-x-0 pointer-events-none scan-line z-50"></div>
@@ -214,6 +214,7 @@
             audioIsSpeaking: false,
             audioIsPaused: false
         };
+        window.State = State;
     </script>
 
     <!-- ================= LEFT SIDEBAR (INTELLIGENCE INGESTION) ================= -->
@@ -310,6 +311,12 @@
                 <button onclick="switchTab('mindmap')" id="tabMindmap" class="px-4 py-1 text-xs font-mono font-medium rounded-md transition-all flex items-center gap-2">
                     <i data-lucide="network" class="w-3.5 h-3.5"></i> THREAT GRAPH
                 </button>
+                <button onclick="switchTab('briefing')" id="tabBriefing" class="px-4 py-1 text-xs font-mono font-medium rounded-md transition-all flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-900">
+                    <i data-lucide="presentation" class="w-3.5 h-3.5"></i> BRIEFING
+                </button>
+                <button onclick="switchTab('cve')" id="tabCve" class="px-4 py-1 text-xs font-mono font-medium rounded-md transition-all flex items-center gap-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-900">
+                    <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> LIVE CVE
+                </button>
             </div>
 
             <div class="flex items-center gap-3">
@@ -342,9 +349,14 @@
                     <div class="absolute top-0 left-0 w-12 h-[2px] bg-emeraldNeon"></div>
                     <div class="absolute top-0 left-0 w-[2px] h-12 bg-emeraldNeon"></div>
                     
-                    <div class="flex items-center justify-between border-b border-gray-200 dark:border-slateBorder pb-4 mb-6 font-mono">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-200 dark:border-slateBorder pb-4 mb-6 font-mono">
                         <h2 id="docViewTitle" class="text-sm font-bold text-emeraldNeon tracking-wider uppercase truncate max-w-[70%]"></h2>
-                        <span id="docViewMeta" class="text-[10px] text-gray-400 dark:text-gray-500"></span>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span id="docViewMeta" class="text-[10px] text-gray-400 dark:text-gray-500"></span>
+                            <button onclick="switchTab('briefing'); generateBriefing();" class="px-3 py-1.5 bg-cyberPurple hover:bg-purple-500 text-white rounded text-xs font-mono shadow-neon-purple inline-flex items-center gap-1" title="Generate a slide deck from this uploaded document">
+                                <i data-lucide="presentation" class="w-3.5 h-3.5"></i> Generate Slides
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Content Ingest Container -->
@@ -390,6 +402,58 @@
                     <div id="mindmapLoader" class="hidden absolute inset-0 bg-obsidian/90 flex flex-col items-center justify-center z-20">
                         <i data-lucide="cpu" class="w-10 h-10 text-emeraldNeon animate-spin mb-4"></i>
                         <span class="font-mono text-emeraldNeon cursor-blink text-xs">Parsing threat nodes...</span>
+                    </div>
+                </div>
+            </div>
+            <!-- Briefing (Slide Deck) Workspace -->
+            <div id="briefingWorkspace" class="hidden absolute inset-0 overflow-hidden bg-gray-50 dark:bg-obsidian flex flex-col">
+                <div class="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-slateBorder bg-white/60 dark:bg-slateDark/60">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="presentation" class="w-4 h-4 text-cyberPurple"></i>
+                        <span class="text-xs font-mono text-gray-700 dark:text-gray-300">Executive Briefing Deck</span>
+                        <span id="briefingMeta" class="text-[10px] font-mono text-gray-400"></span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="generateBriefing()" id="btnGenerateBriefing" class="px-3 py-1.5 bg-cyberPurple hover:bg-purple-500 text-white rounded text-xs font-mono shadow-neon-purple flex items-center gap-1">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Generate Slides
+                        </button>
+                        <button onclick="briefingNav(-1)" class="p-1.5 rounded bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700"><i data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
+                        <span id="briefingCounter" class="text-[11px] font-mono text-gray-500 dark:text-gray-400 w-12 text-center">0 / 0</span>
+                        <button onclick="briefingNav(1)" class="p-1.5 rounded bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700"><i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+                    </div>
+                </div>
+                <div id="briefingStage" class="flex-1 overflow-hidden flex items-center justify-center p-8 cyber-grid">
+                    <div id="briefingEmpty" class="text-center max-w-md">
+                        <i data-lucide="layout-template" class="w-12 h-12 text-cyberPurple mx-auto mb-3 opacity-60"></i>
+                        <h3 class="text-sm font-mono text-gray-700 dark:text-gray-200 mb-1">Convert Research to a Slide Deck</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">Upload a PDF / DOCX then click the button below. Long-form intel will be condensed into a presentation for fast situational awareness.</p>
+                        <button onclick="generateBriefing()" class="px-5 py-2 bg-cyberPurple hover:bg-purple-500 text-white rounded-lg text-xs font-mono shadow-neon-purple inline-flex items-center gap-2">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i> Generate Slides Now
+                        </button>
+                    </div>
+                    <div id="briefingSlide" class="hidden w-full max-w-5xl aspect-video rounded-xl shadow-neon-purple overflow-hidden"></div>
+                </div>
+            </div>
+
+            <!-- Live CVE Fetcher Workspace -->
+            <div id="cveWorkspace" class="hidden absolute inset-0 overflow-hidden bg-gray-50 dark:bg-obsidian flex flex-col">
+                <div class="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-gray-200 dark:border-slateBorder bg-white/60 dark:bg-slateDark/60">
+                    <div class="flex items-center gap-2 mr-2 shrink-0">
+                        <i data-lucide="shield-alert" class="w-4 h-4 text-alertRed"></i>
+                        <span class="text-xs font-mono text-gray-700 dark:text-gray-300">Live CVE Feed</span>
+                        <button onclick="fetchCves({ fromDocument: true })" id="btnFetchCvesDoc" class="px-3 py-1.5 bg-alertRed hover:bg-red-500 text-white rounded text-xs font-mono shadow-neon-red inline-flex items-center gap-1" title="Extract CVE IDs and security terms from the uploaded document">
+                            <i data-lucide="radar" class="w-3.5 h-3.5"></i> Fetch From Document
+                        </button>
+                    </div>
+                    <input id="cveSearch" placeholder="Optional: CVE-YYYY-NNNN, product, vendor, exploit keyword..." class="min-w-[220px] flex-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-800 rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:border-emeraldNeon" />
+                    <button onclick="fetchCves()" id="btnFetchCves" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded text-xs font-mono border border-alertRed/50 inline-flex items-center gap-1 shrink-0">
+                        <i data-lucide="search" class="w-3.5 h-3.5"></i> Fetch Search
+                    </button>
+                </div>
+                <div id="cveResults" class="flex-1 overflow-y-auto p-4 space-y-2">
+                    <div class="text-center text-xs text-gray-500 dark:text-gray-400 py-12">
+                        <i data-lucide="satellite" class="w-10 h-10 text-emeraldNeon mx-auto mb-2 opacity-60"></i>
+                        Click <span class="text-emeraldNeon font-mono">Fetch</span> to pull the latest CVEs from NVD.
                     </div>
                 </div>
             </div>
@@ -1451,6 +1515,223 @@
             }
             lucide.createIcons();
         }
+    </script>
+
+    <!-- Quick Command Footer -->
+    <div id="cmdFooter" class="fixed bottom-0 left-0 right-0 z-40 bg-slateDark/95 border-t border-emeraldNeon/40 backdrop-blur px-3 py-1.5 flex items-center gap-2 font-mono text-xs">
+        <span class="text-emeraldNeon">root@threatsynth:~$</span>
+        <input id="cmdInput" placeholder="quick query — try: calc 2*(3+4)  |  hex 255  |  b64 hello  |  help" class="flex-1 bg-transparent border-0 focus:outline-none text-emeraldNeon placeholder-gray-600" />
+        <span id="cmdOut" class="text-cyberBlue truncate max-w-[40%]"></span>
+        <button onclick="toggleCmdFooter(false)" class="text-gray-500 hover:text-alertRed" title="Hide terminal"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+    </div>
+    <!-- Reopen pill for terminal (visible when footer is hidden) -->
+    <button id="cmdReopen" onclick="toggleCmdFooter(true)" class="hidden fixed bottom-3 right-3 z-40 bg-emeraldNeon hover:bg-emerald-400 text-black rounded-full shadow-neon-green px-3 py-1.5 font-mono text-xs flex items-center gap-1.5" title="Show terminal">
+        <i data-lucide="terminal" class="w-3.5 h-3.5"></i> Terminal
+    </button>
+
+    <script>
+    (function(){
+        const out = (msg, cls) => {
+            const el = document.getElementById('cmdOut');
+            el.className = 'truncate max-w-[40%] ' + (cls || 'text-cyberBlue');
+            el.textContent = msg;
+        };
+        window.toggleCmdFooter = (show) => {
+            const f = document.getElementById('cmdFooter');
+            const r = document.getElementById('cmdReopen');
+            if (show) { f.classList.remove('hidden'); r.classList.add('hidden'); document.getElementById('cmdInput').focus(); }
+            else      { f.classList.add('hidden');    r.classList.remove('hidden'); }
+            if (window.lucide) lucide.createIcons();
+        };
+        const safeCalc = (expr) => {
+            if (!/^[-+*/%().\d\s,eE]+$/.test(expr)) throw new Error('blocked');
+            return Function('"use strict";return (' + expr + ')')();
+        };
+        document.getElementById('cmdInput').addEventListener('keydown', (e) => {
+            if (e.key !== 'Enter') return;
+            const raw = e.target.value.trim(); if (!raw) return;
+            const [cmd, ...rest] = raw.split(/\s+/); const arg = rest.join(' ');
+            try {
+                switch ((cmd||'').toLowerCase()) {
+                    case 'help': out('calc <expr> | hex <n> | dec <0xN> | bin <n> | b64 <txt> | unb64 <s> | sha256 <txt> | clear'); break;
+                    case 'calc': out('= ' + safeCalc(arg)); break;
+                    case 'hex':  out('0x' + Number(arg).toString(16)); break;
+                    case 'dec':  out(String(parseInt(arg, 16))); break;
+                    case 'bin':  out('0b' + Number(arg).toString(2)); break;
+                    case 'b64':  out(btoa(arg)); break;
+                    case 'unb64': out(atob(arg)); break;
+                    case 'sha256': crypto.subtle.digest('SHA-256', new TextEncoder().encode(arg)).then(b => out(Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join(''))); break;
+                    case 'clear': out(''); break;
+                    default:
+                        try { out('= ' + safeCalc(raw)); } catch { out('unknown — try help', 'text-alertRed'); }
+                }
+            } catch (err) { out('err: ' + err.message, 'text-alertRed'); }
+            e.target.value = '';
+        });
+
+        let slides = [], slideIdx = 0;
+        const escapeHTML = (value = '') => String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        function getActiveFile(){
+            const st = window.State || {};
+            return (st.files || []).find(f => f.isSelected) || (st.files || [])[0] || null;
+        }
+        function cleanDocumentText(text = ''){
+            return String(text)
+                .replace(/---PAGE_(?:START|END)_\d+---/g, ' ')
+                .replace(/\[Page\s+\d+\]/gi, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+        function renderSlide(){
+            const stage = document.getElementById('briefingSlide');
+            const empty = document.getElementById('briefingEmpty');
+            const counter = document.getElementById('briefingCounter');
+            const meta = document.getElementById('briefingMeta');
+            if (!slides.length){ stage.classList.add('hidden'); empty.classList.remove('hidden'); counter.textContent='0 / 0'; return; }
+            empty.classList.add('hidden'); stage.classList.remove('hidden');
+            const s = slides[slideIdx];
+            stage.innerHTML = `
+                <section class="relative h-full w-full overflow-hidden bg-[#06100d] text-white border border-cyberPurple/40">
+                    <div class="absolute inset-0 opacity-70" style="background-image: radial-gradient(circle at 20% 12%, rgba(168,85,247,.32), transparent 28%), radial-gradient(circle at 82% 72%, rgba(16,185,129,.22), transparent 30%), linear-gradient(135deg, #05070a 0%, #07130f 52%, #111827 100%);"></div>
+                    <div class="absolute inset-0 opacity-25 cyber-grid"></div>
+                    <div class="absolute -right-24 -top-24 w-72 h-72 border border-emeraldNeon/30 rotate-45"></div>
+                    <div class="absolute left-8 bottom-8 right-8 h-px bg-gradient-to-r from-emeraldNeon via-cyberPurple to-transparent opacity-80"></div>
+                    <div class="relative z-10 h-full p-8 md:p-12 flex flex-col">
+                        <div class="flex items-center justify-between mb-6 font-mono text-[10px] uppercase tracking-widest text-emeraldNeon">
+                            <span>ThreatSynth Briefing</span>
+                            <span>${slideIdx + 1} / ${slides.length}</span>
+                        </div>
+                        <div class="mb-5 inline-flex w-fit items-center gap-2 rounded border border-cyberPurple/50 bg-cyberPurple/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-purple-200">
+                            <span class="h-1.5 w-1.5 rounded-full bg-emeraldNeon shadow-neon-green"></span>${escapeHTML(s.kicker || 'Extracted Intelligence')}
+                        </div>
+                        <h2 class="text-2xl md:text-4xl font-black leading-tight text-white mb-7 max-w-4xl">${escapeHTML(s.title)}</h2>
+                        <ul class="grid gap-3 text-sm md:text-lg leading-relaxed text-gray-100">
+                            ${s.bullets.map(b => `<li class="flex gap-3 rounded-lg border border-white/10 bg-black/25 p-3 backdrop-blur-sm"><span class="mt-2 h-2 w-2 rounded-full bg-emeraldNeon flex-shrink-0 shadow-neon-green"></span><span>${escapeHTML(b)}</span></li>`).join('')}
+                        </ul>
+                        <div class="mt-auto pt-5 font-mono text-[10px] text-gray-400 truncate">Source: ${escapeHTML(s.source || '')}</div>
+                    </div>
+                </section>`;
+            counter.textContent = (slideIdx+1)+' / '+slides.length;
+            if (meta) meta.textContent = `${slides.length} slides generated`;
+        }
+        window.briefingNav = (d) => { if(!slides.length) return; slideIdx=(slideIdx+d+slides.length)%slides.length; renderSlide(); };
+
+        function extractiveSlides(text, title){
+            const cleaned = cleanDocumentText(text);
+            const sents = cleaned.split(/(?<=[.!?])\s+/).map(s => s.trim()).filter(s=>s.length>35 && s.length<360);
+            if(!sents.length) return [];
+            const stop = new Set('the a an and or of to in is for on with by as at from this that be are was were it its their our we you they will can has have not but if then so into about after before over under more most which while where when using use used such than also'.split(' '));
+            const cyberBoost = new Set('cve vulnerability exploit malware ransomware phishing attack attacker threat critical high risk remediation mitigation patch exposure compromise credential privilege remote code execution zero day ioc indicator backdoor botnet payload lateral movement command control'.split(' '));
+            const freq = {};
+            sents.forEach(s => s.toLowerCase().split(/[^a-z0-9-]+/).forEach(w => { if(w && !stop.has(w) && w.length>3) freq[w]=(freq[w]||0)+1; }));
+            const score = s => s.toLowerCase().split(/[^a-z0-9-]+/).reduce((a,w)=>a+(freq[w]||0)+(cyberBoost.has(w)?8:0)+(/^cve-\d{4}-\d+/i.test(w)?20:0),0);
+            const top = [...sents].map(s=>({s,sc:score(s)})).sort((a,b)=>b.sc-a.sc).slice(0,20).map(r=>r.s.replace(/^[-•\d.\s]+/, '').trim());
+            const cves = [...new Set((cleaned.match(/CVE-\d{4}-\d{4,7}/gi) || []).map(x => x.toUpperCase()))].slice(0,6);
+            const source = title || 'Uploaded PDF/DOCX';
+            const deck = [{ title: 'Cyber Threat Briefing', kicker: 'Executive Snapshot', source, bullets:[`Source document: ${source}`, `${sents.length} source statements analyzed into a rapid deck.`, cves.length ? `Detected CVE references: ${cves.join(', ')}` : 'No explicit CVE identifiers found; extracted the highest-signal cyber findings.' ] }];
+            const slideTitles = ['Critical Findings', 'Threat & Vulnerability Signals', 'Operational Impact', 'Research Highlights', 'Analyst Notes'];
+            for (let i=0;i<top.length;i+=4) deck.push({ title: slideTitles[Math.floor(i/4)] || 'Additional Findings', kicker: 'Document Extraction', source, bullets: top.slice(i,i+4) });
+            deck.push({ title:'Recommended Actions', kicker:'Next Steps', source, bullets:['Validate discovered CVEs and IOCs against live threat intelligence.', 'Prioritize patching and containment for critical or externally exposed systems.', 'Brief stakeholders using this deck, then preserve the original document as evidence.', 'Use the Live CVE feed to pull current NVD severity and publication data.'] });
+            return deck;
+        }
+        window.generateBriefing = () => {
+            const btn = document.getElementById('btnGenerateBriefing');
+            const empty = document.getElementById('briefingEmpty');
+            const f = getActiveFile();
+            if(!f){ out('briefing: upload a PDF/DOCX first','text-alertOrange'); if(empty) empty.querySelector('p').textContent = 'Upload a PDF / DOCX first, then click Generate Slides Now.'; return; }
+            const text = f.content || f.text || f.rawText || '';
+            if(!cleanDocumentText(text) || cleanDocumentText(text).length<80){ out('briefing: not enough text extracted','text-alertOrange'); return; }
+            const originalBtn = btn ? btn.innerHTML : '';
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Generating...'; if(window.lucide) lucide.createIcons(); }
+            slides = extractiveSlides(text, f.name); slideIdx = 0; renderSlide();
+            out('briefing: '+slides.length+' slides ready','text-cyberPurple');
+            if (btn) { btn.disabled = false; btn.innerHTML = originalBtn; if(window.lucide) lucide.createIcons(); }
+        };
+
+        function extractCveQueriesFromDocument(text = ''){
+            const cleaned = cleanDocumentText(text);
+            const explicit = [...new Set((cleaned.match(/CVE-\d{4}-\d{4,7}/gi) || []).map(x => x.toUpperCase()))];
+            if (explicit.length) return explicit.slice(0,8);
+            const cyberTerms = ['windows','linux','apache','nginx','openssl','chrome','firefox','exchange','outlook','wordpress','docker','kubernetes','fortinet','cisco','juniper','palo alto','vmware','citrix','ivanti','ssh','vpn','ransomware','remote code execution','privilege escalation','sql injection','cross-site scripting'];
+            const lower = cleaned.toLowerCase();
+            const hits = cyberTerms.filter(term => lower.includes(term));
+            return (hits.length ? hits : ['critical vulnerability']).slice(0,5);
+        }
+        window.fetchCves = async (options = {}) => {
+            const q = document.getElementById('cveSearch').value.trim();
+            const wrap = document.getElementById('cveResults');
+            const fromDocument = !!options.fromDocument || (!q && !!getActiveFile());
+            const activeFile = getActiveFile();
+            let queries = [];
+            if (fromDocument && activeFile) queries = extractCveQueriesFromDocument(activeFile.content || '');
+            if (q) queries = [q];
+            if (!queries.length) queries = ['critical vulnerability'];
+            wrap.innerHTML = '<div class="text-center text-xs text-gray-400 py-8 font-mono">Pulling live CVE data from NVD...</div>';
+            try {
+                const collected = new Map();
+                for (const query of queries.slice(0,8)) {
+                    let url;
+                    if (/^CVE-\d{4}-\d+$/i.test(query)) url = 'https://services.nvd.nist.gov/rest/json/cves/2.0?cveId='+encodeURIComponent(query.toUpperCase());
+                    else { const base='https://services.nvd.nist.gov/rest/json/cves/2.0?resultsPerPage=10'; url = base+'&keywordSearch='+encodeURIComponent(query); }
+                    const r = await fetch(url);
+                    if(!r.ok) throw new Error('HTTP '+r.status);
+                    const j = await r.json();
+                    (j.vulnerabilities || []).forEach(item => { if(item?.cve?.id) collected.set(item.cve.id, item); });
+                }
+                const items = [...collected.values()].slice(0,25);
+                if(!items.length){ wrap.innerHTML='<div class="text-center text-xs text-gray-400 py-8">No CVEs found.</div>'; return; }
+                const queryLabel = fromDocument && activeFile ? `Document-derived query: ${escapeHTML(queries.join(', '))}` : `Search query: ${escapeHTML(queries.join(', '))}`;
+                wrap.innerHTML = items.map(v=>{
+                    const c=v.cve; const desc=(c.descriptions||[]).find(d=>d.lang==='en')?.value||'';
+                    const m=c.metrics||{}; const cvss=(m.cvssMetricV31?.[0]?.cvssData)||(m.cvssMetricV30?.[0]?.cvssData)||(m.cvssMetricV2?.[0]?.cvssData);
+                    const score=cvss?.baseScore; const sev=cvss?.baseSeverity || (score>=9?'CRITICAL':score>=7?'HIGH':score>=4?'MEDIUM':score?'LOW':'N/A');
+                    const sevColor=sev==='CRITICAL'?'bg-alertRed text-white':sev==='HIGH'?'bg-alertOrange text-black':sev==='MEDIUM'?'bg-yellow-500 text-black':sev==='LOW'?'bg-emeraldNeon text-black':'bg-gray-600 text-white';
+                    return '<div class="border border-gray-200 dark:border-slateBorder rounded-lg p-3 bg-white dark:bg-slateDark hover:border-emeraldNeon transition-colors">'+
+                        '<div class="flex items-center justify-between mb-1.5 gap-2">'+
+                            '<a href="https://nvd.nist.gov/vuln/detail/'+encodeURIComponent(c.id)+'" target="_blank" class="font-mono text-xs text-cyberBlue hover:text-emeraldNeon">'+escapeHTML(c.id)+'</a>'+
+                            '<div class="flex items-center gap-2">'+
+                                '<span class="px-2 py-0.5 rounded text-[10px] font-mono '+sevColor+'">'+escapeHTML(sev+(score?' '+score:''))+'</span>'+
+                                '<span class="text-[10px] font-mono text-gray-400">'+escapeHTML((c.published||'').slice(0,10))+'</span>'+
+                            '</div></div>'+
+                        '<p class="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">'+escapeHTML(desc.length>320?desc.slice(0,320)+'…':desc)+'</p></div>';
+                }).join('');
+                wrap.insertAdjacentHTML('afterbegin', '<div class="rounded border border-emeraldNeon/30 bg-emeraldNeon/10 px-3 py-2 text-[10px] font-mono text-emeraldNeon">'+queryLabel+'</div>');
+                if (window.lucide) lucide.createIcons();
+                out('cve: '+items.length+' entries','text-emeraldNeon');
+            } catch(e){
+                wrap.innerHTML = '<div class="text-center text-xs text-alertRed py-8 font-mono">Fetch failed: '+e.message+'</div>';
+                out('cve: '+e.message,'text-alertRed');
+            }
+        };
+        // Press Enter inside the CVE search box to trigger Fetch
+        document.getElementById('cveSearch')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); window.fetchCves(); }
+        });
+
+        const origSwitchTab = window.switchTab;
+        window.switchTab = function(name){
+            const map = { document:'documentWorkspace', mindmap:'mindmapWorkspace', briefing:'briefingWorkspace', cve:'cveWorkspace' };
+            const tabs = { document:'tabDocument', mindmap:'tabMindmap', briefing:'tabBriefing', cve:'tabCve' };
+            if (!map[name]) return origSwitchTab ? origSwitchTab(name) : null;
+            Object.values(map).forEach(id => document.getElementById(id)?.classList.add('hidden'));
+            document.getElementById(map[name])?.classList.remove('hidden');
+            const active = "bg-white dark:bg-gray-800 text-emeraldNeon shadow-sm border border-gray-300 dark:border-slateBorder";
+            const inactive = "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-900";
+            Object.entries(tabs).forEach(([k,id])=>{ const el=document.getElementById(id); if(!el) return; el.className = el.className.replace(active,'').replace(inactive,'') + ' ' + (k===name?active:inactive); });
+            // Auto-generate slides the first time the user visits Briefing after uploading
+            if (name === 'briefing' && !slides.length) {
+                const st = window.State;
+                if (st && st.files && st.files.length) { try { window.generateBriefing(); } catch(_){} }
+            }
+        };
+
+        if (window.lucide) lucide.createIcons();
+    })();
     </script>
 </body>
 </html>
